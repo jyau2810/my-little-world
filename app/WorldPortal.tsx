@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties } from "react";
+import type { CSSProperties, MouseEvent } from "react";
 import type { Article, Project, Story, Thought, WeatherType } from "./content";
 import { RainLayer } from "./RainLayer";
 
@@ -40,6 +40,44 @@ const weatherImage: Record<WeatherType, string> = {
   dusk: assetPath("/world-home-v3.jpg"),
 };
 
+type StoryThought = { src: string; alt: string };
+type StoryThoughtLine = string;
+
+const storyThoughtsByStory: ReadonlyArray<Record<string, StoryThought>> = [
+  {
+    "小时候，世界上有很多细碎的东西：": { src: assetPath("/story-thoughts/story-cloudy-fragments-v1.png"), alt: "水渍、灯光与一双黄色雨靴" },
+    "这个世界建造于，一个云层很低的阴天。": { src: assetPath("/story-thoughts/story-cloudy-waiting-v1.png"), alt: "低云下独自在校门口等待的小女孩" },
+    "“你把鸡蛋给你表哥吃，反正你也不爱吃。”": { src: assetPath("/story-thoughts/story-cloudy-table-v1.png"), alt: "餐桌旁看着鸡蛋递向表哥的小女孩" },
+    "这些声音落进很小的身体里，慢慢长成一种秩序。": { src: assetPath("/story-thoughts/story-cloudy-order-v1.png"), alt: "沿着台阶前行并被声音缠绕的小女孩" },
+    "“你看，她多好。”": { src: assetPath("/story-thoughts/story-cloudy-seen-v1.png"), alt: "在树林金色光斑里被未来的自己看见的小女孩" },
+  },
+  {
+    "她开始在不同的光束间跳跃。": { src: assetPath("/story-thoughts/story-sunny-beams-v1.png"), alt: "在三束金色光里轻快跳跃的女孩" },
+    "当学生干部、站上舞台、拿起麦克风——有越来越多的光划过她的手心。": { src: assetPath("/story-thoughts/story-sunny-stage-v1.png"), alt: "站在暖金聚光灯下拿起麦克风的女孩" },
+    "那个等着有人叫出名字的孩子，终于在掌声里听见了自己的名字。": { src: assetPath("/story-thoughts/story-sunny-applause-v1.png"), alt: "在掌声与声波中惊喜地听见自己名字的女孩" },
+    "一个个明亮的光点聚集起来，越过云层，又落回她的眼睛。": { src: assetPath("/story-thoughts/story-sunny-lightpoints-v1.png"), alt: "光点越过低云并落回女孩眼睛的时刻" },
+    "我想，我开始拥有世界了。": { src: assetPath("/story-thoughts/story-sunny-world-v1.png"), alt: "在云层打开的晨光里拥抱小小世界的女孩" },
+  },
+  {
+    "世界偶尔也会下一场很长的雨。": { src: assetPath("/story-thoughts/story-rainy-longrain-v1.png"), alt: "撑着叶子伞稳稳走过长雨的女孩" },
+    "她站在风暴中央。": { src: assetPath("/story-thoughts/story-rainy-storm-v1.png"), alt: "站在风雨旋涡中央仍然稳稳落地的女孩" },
+    "她把别人的目光一寸寸收进身体，最后成为了最苛责自己的那个人。": { src: assetPath("/story-thoughts/story-rainy-gazes-v1.png"), alt: "被许多灰蓝色目光围绕并抱紧心口的女孩" },
+    "“你听见的，究竟是整个世界，还是一个人的回声？”": { src: assetPath("/story-thoughts/story-rainy-echo-v1.png"), alt: "在狭窄回声与宽阔世界声波之间倾听的女孩" },
+    "只是慢慢把别人的声音还给别人，把自己的名字还给自己。": { src: assetPath("/story-thoughts/story-rainy-return-v1.png"), alt: "放走灰色声音并把金色叶片收回心口的女孩" },
+  },
+  {
+    "我走过低垂的云、耀眼的晴天，也走过一场很长的雨。": { src: assetPath("/story-thoughts/story-dusk-weatherpath-v1.png"), alt: "从低云、阳光和雨水三种天气中走过的女孩" },
+    "它们变成风、变成光，也变成泥土，安静地汇聚成了现在的我。": { src: assetPath("/story-thoughts/story-dusk-elements-v1.png"), alt: "让风、光与泥土安静汇入身体的女孩" },
+    "每一次抵达与离开，每一场欢喜与疼痛，都在我的世界里留下新的地形。": { src: assetPath("/story-thoughts/story-dusk-terrain-v1.png"), alt: "在平原、山脉、河流与潮汐间画出新路径的女孩" },
+    "我一次次出发，也一次次拯救自己的世界。": { src: assetPath("/story-thoughts/story-dusk-rescue-v1.png"), alt: "抱着被金线修补的小世界再次出发的女孩" },
+    "我拥有了自己的世界。": { src: assetPath("/story-thoughts/story-dusk-ownworld-v1.png"), alt: "怀抱完整小世界向晨光继续前行的女孩" },
+  },
+];
+
+const storyThoughtAssets = storyThoughtsByStory.flatMap((thoughts) =>
+  Object.values(thoughts).map((thought) => thought.src),
+);
+
 function sceneFromHash(hash: string): Scene {
   const decoded = decodeURIComponent(hash);
   if (decoded.includes("故事")) return "story";
@@ -54,11 +92,17 @@ export function WorldPortal({ siteConfig, stories, articles, thoughts, projects 
   const [transitioning, setTransitioning] = useState(false);
   const [transitionOrigin, setTransitionOrigin] = useState<TransitionOrigin>({ x: 50, y: 50 });
   const [menuOpen, setMenuOpen] = useState(false);
+  const [activeStoryThoughtLine, setActiveStoryThoughtLine] = useState<StoryThoughtLine | null>(null);
+  const [storyThoughtTop, setStoryThoughtTop] = useState(50);
   const transitionTimers = useRef<number[]>([]);
   const sceneHeadingRef = useRef<HTMLHeadingElement>(null);
 
   const story = stories[storyIndex];
   const article = articles[articleIndex];
+  const currentStoryThoughts = storyThoughtsByStory[storyIndex] ?? {};
+  const activeStoryThought = activeStoryThoughtLine
+    ? currentStoryThoughts[activeStoryThoughtLine] ?? null
+    : null;
 
   const weather = useMemo<WeatherType>(() => {
     if (scene === "story") return story.weather.type;
@@ -120,6 +164,7 @@ export function WorldPortal({ siteConfig, stories, articles, thoughts, projects 
   ) => {
     runTransition(() => {
       setScene(nextScene);
+      setActiveStoryThoughtLine(null);
       if (nextScene === "story") setStoryIndex(nextStoryIndex);
       setPanelOpen(nextScene === "thoughts" || nextScene === "projects");
     }, origin, sceneHash[nextScene]);
@@ -129,6 +174,7 @@ export function WorldPortal({ siteConfig, stories, articles, thoughts, projects 
     runTransition(() => {
       setStoryIndex(index);
       setPanelOpen(false);
+      setActiveStoryThoughtLine(null);
     }, { x: 22 + index * 15, y: 20 }, `${sceneHash.story}?叶=${index + 1}`);
   };
 
@@ -167,7 +213,7 @@ export function WorldPortal({ siteConfig, stories, articles, thoughts, projects 
         "/world-sunny-dance-mobile-v1.jpg",
         "/world-dusk-horizon-v2.jpg",
         "/world-dusk-horizon-mobile-v2.jpg",
-      ].map(assetPath).forEach((src) => {
+      ].map(assetPath).concat(storyThoughtAssets).forEach((src) => {
         const image = new Image();
         image.decoding = "async";
         image.src = src;
@@ -195,6 +241,7 @@ export function WorldPortal({ siteConfig, stories, articles, thoughts, projects 
       if (event.key !== "Escape") return;
       if (panelOpen) {
         setPanelOpen(false);
+        setActiveStoryThoughtLine(null);
         return;
       }
       if (scene !== "home") {
@@ -211,15 +258,39 @@ export function WorldPortal({ siteConfig, stories, articles, thoughts, projects 
     "--portal-y": `${transitionOrigin.y}%`,
   } as CSSProperties;
 
+  const thoughtStyle = {
+    "--thought-y": `${storyThoughtTop}px`,
+  } as CSSProperties;
+
+  const closeStoryPanel = () => {
+    setPanelOpen(false);
+    setActiveStoryThoughtLine(null);
+  };
+
+  const handleWorldClick = (event: MouseEvent<HTMLDivElement>) => {
+    if (!panelOpen || scene !== "story") return;
+    const readingPanel = event.currentTarget.querySelector<HTMLElement>(".reading-panel");
+    if (readingPanel?.contains(event.target as Node)) return;
+    closeStoryPanel();
+  };
+
+  const showStoryThought = (line: StoryThoughtLine, element: HTMLElement) => {
+    const bounds = element.getBoundingClientRect();
+    const preferredTop = bounds.top + bounds.height / 2;
+    setStoryThoughtTop(Math.max(230, Math.min(window.innerHeight - 230, preferredTop)));
+    setActiveStoryThoughtLine(line);
+  };
+
   return (
     <div
-      className={`world ${transitioning ? "is-transitioning" : ""}`}
+      className={`world ${transitioning ? "is-transitioning" : ""} ${panelOpen && scene === "story" ? "is-story-reading" : ""}`}
       data-scene={scene}
       data-story={scene === "story" ? storyIndex + 1 : undefined}
       data-weather={weather}
       style={rootStyle}
+      onClick={handleWorldClick}
     >
-      <div className="world-picture" key={`${backgroundImage}-${scene}-${storyIndex}-${panelOpen ? articleIndex : "closed"}`}>
+      <div className="world-picture" key={`${backgroundImage}-${scene}-${storyIndex}`}>
         <picture>
           {mobileBackgroundImage ? (
             <source media="(max-width: 760px)" srcSet={mobileBackgroundImage} />
@@ -389,9 +460,29 @@ export function WorldPortal({ siteConfig, stories, articles, thoughts, projects 
         </button>
       ) : null}
 
+      {panelOpen && scene === "story" && activeStoryThought ? (
+        <aside
+          className="story-thought-popover"
+          key={activeStoryThought.src}
+          style={thoughtStyle}
+          aria-hidden="true"
+        >
+          <span className="story-thought-dot story-thought-dot-small" />
+          <span className="story-thought-dot story-thought-dot-medium" />
+          <span className="story-thought-dot story-thought-dot-large" />
+          <div className="story-thought-bubble">
+            <svg className="story-thought-outline" viewBox="0 0 400 300" preserveAspectRatio="none" aria-hidden="true">
+              <path d="M58 60 C78 27 120 32 148 40 C176 10 218 20 238 43 C274 23 320 34 337 68 C372 78 377 113 350 142 C374 166 359 201 326 214 C310 248 263 248 232 230 C202 258 151 247 133 224 C96 242 58 222 64 190 C28 177 27 137 54 111 C29 94 36 71 58 60 Z" />
+            </svg>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={activeStoryThought.src} alt="" decoding="async" />
+          </div>
+        </aside>
+      ) : null}
+
       {panelOpen && scene === "story" ? (
         <aside className="reading-panel" aria-label={`${story.title}故事正文`}>
-          <button className="panel-close" type="button" onClick={() => setPanelOpen(false)}>只看风景 <span aria-hidden="true">×</span></button>
+          <button className="panel-close" type="button" onClick={closeStoryPanel}>只看风景 <span aria-hidden="true">×</span></button>
           <div className="panel-scroll">
             <p className="panel-kicker">{story.time} · {story.weather.label}</p>
             <h2>{story.title}</h2>
@@ -408,7 +499,32 @@ export function WorldPortal({ siteConfig, stories, articles, thoughts, projects 
                     ? "story-line story-ellipsis"
                     : "story-line";
 
-                return <p className={lineClassName} key={`${story.title}-${index}`}>{line}</p>;
+                const thoughtLine = line in currentStoryThoughts ? line : null;
+
+                return (
+                  <p className={lineClassName} key={`${story.title}-${index}`}>
+                    {thoughtLine ? (
+                      <button
+                        className="story-thought-trigger"
+                        type="button"
+                        aria-expanded={activeStoryThoughtLine === thoughtLine}
+                        aria-label={`${line}，查看插画：${currentStoryThoughts[thoughtLine].alt}`}
+                        onPointerEnter={(event) => {
+                          if (event.pointerType !== "touch") showStoryThought(thoughtLine, event.currentTarget);
+                        }}
+                        onPointerLeave={(event) => {
+                          if (event.pointerType !== "touch") setActiveStoryThoughtLine(null);
+                        }}
+                        onFocus={(event) => showStoryThought(thoughtLine, event.currentTarget)}
+                        onBlur={() => setActiveStoryThoughtLine(null)}
+                        onClick={(event) => showStoryThought(thoughtLine, event.currentTarget)}
+                      >
+                        {line}
+                        <span className="story-thought-hint" aria-hidden="true" />
+                      </button>
+                    ) : line}
+                  </p>
+                );
               })}
             </div>
             <p className="panel-end">第 {String(storyIndex + 1).padStart(2, "0")} 片叶子</p>
