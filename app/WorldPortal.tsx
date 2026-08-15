@@ -80,6 +80,7 @@ const storyThoughtAssets = storyThoughtsByStory.flatMap((thoughts) =>
 
 function sceneFromHash(hash: string): Scene {
   const decoded = decodeURIComponent(hash);
+  if (decoded.includes("做过的事")) return "projects";
   if (decoded.includes("故事")) return "story";
   return "home";
 }
@@ -326,6 +327,14 @@ export function WorldPortal({ siteConfig, stories, articles, thoughts, projects 
               {item.title}
             </button>
           ))}
+          <button
+            type="button"
+            className={scene === "projects" ? "is-current" : ""}
+            aria-current={scene === "projects" ? "page" : undefined}
+            onClick={() => enterScene("projects", { x: 86, y: 12 })}
+          >
+            做过的事
+          </button>
         </nav>
         <button
           className="world-menu-button"
@@ -343,6 +352,9 @@ export function WorldPortal({ siteConfig, stories, articles, thoughts, projects 
                 {item.title}
               </button>
             ))}
+            <button type="button" onClick={() => enterScene("projects", { x: 50, y: 28 })}>
+              做过的事
+            </button>
           </nav>
         ) : null}
       </header>
